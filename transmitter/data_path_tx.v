@@ -8,16 +8,33 @@
 // UART transmitter datapath.
 //
 // Features:
-// - FIFO-based buffering
-// - Baud rate generation
-// - Parity generation
-// - Parallel-In Serial-Out transmission
+// - FIFO-based transmission buffering
+// - Programmable baud-rate generation
+// - Configurable UART baud-rate operation
+// - Parallel-In Serial-Out (PISO) serialization
+// - Even/Odd parity generation
+// - UART serial transmission
 // - Parameterized FIFO depth and width
 //
+// Architecture:
+// FIFO -> Baud Counter -> Parity Generator -> PISO Serializer
+//
+// Baud Configuration:
+// - Baud-rate divider value is provided externally
+//   through the `div` input
+// - Current implementation uses a 9-bit divider
+// - Supported divider range: 1 to 511
+//
+// Notes:
+// - Current implementation uses fixed UART frame format
+// - Current implementation supports single stop bit
+// - Dynamic UART framing is not yet implemented
+// - Current transmitter control logic is not FSM-based
+//
 // Submodules:
-// - top          : FIFO
-// - baud_counter : Baud rate counter
-// - parity       : Parity generator
+// - top          : FIFO buffer
+// - baud_counter : Baud timing generator
+// - parity       : Parity generation logic
 // - piso         : UART serializer
 //
 //==============================================================================
