@@ -20,7 +20,7 @@ module test_tx;
 reg clk,wr,rst,en,parity_en,parity_odd;
 reg [7:0]data_in;
 reg [8:0]div;
-wire tx,full,nr_full,_nr_empty;
+wire tx,full,nr_full,nr_empty;
 integer i;
 
 top_tx dut(
