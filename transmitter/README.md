@@ -10,6 +10,8 @@ A modular and parameterized UART transmitter implemented in Verilog HDL featurin
 * Parity generation
 * Control path and datapath separation
 * Verification testbench
+* Static Timing Analysis (STA)
+* Gate-Level Simulation (GLS)
 
 ---
 
@@ -23,6 +25,22 @@ A modular and parameterized UART transmitter implemented in Verilog HDL featurin
 * UART serial transmission
 * Modular RTL architecture
 * Verification testbench with waveform analysis
+* Gate-level synthesis and timing verification
+
+---
+
+# Technology and Tools
+
+| Category | Tool / Technology |
+|---|---|
+| RTL Design | Verilog HDL |
+| Synthesis | Yosys |
+| Static Timing Analysis | OpenSTA |
+| Waveform Viewer | GTKWave |
+| PDK | Sky130 |
+| Technology Node | 130 nm |
+| Standard Cell Library | sky130_fd_sc_hd |
+| Library Corner | tt_025C_1v80 |
 
 ---
 
@@ -91,26 +109,23 @@ START + 8 DATA + PARITY + STOP
 
 Baud timing is generated using a programmable divider value provided externally through the `div` input.
 
-```
+```verilog
 if(count == div-1)
     count <= 0;
-
 ```
 
 The divider value is supplied by the upper-level system, allowing configurable UART baud-rate operation without modifying RTL.
 
 The divider register is 9 bits wide:
 
-```
+```verilog
 input [8:0] div
-
 ```
 
 Supported divider range:
 
-```
+```text
 1 to 511
-
 ```
 
 > `div = 0` is considered invalid.
@@ -119,22 +134,23 @@ Supported divider range:
 
 ## Baud Rate Formula
 
-```
+```text
 Baud Rate = Clock Frequency / Divider Value
-
 ```
 
 ---
 
 ## Example (100 MHz Clock)
 
-| Divider (`div`)Approximate Baud Rate |             |
-| ------------------------------------ | ----------- |
-| 104                                  | 9600 baud   |
-| 54                                   | 115200 baud |
-| 8                                    | 12.5 Mbps   |
+| Divider (`div`) | Approximate Baud Rate |
+|---|---|
+| 104 | 9600 baud |
+| 54 | 115200 baud |
+| 8 | 12.5 Mbps |
 
 This allows the UART transmitter to support multiple baud rates using the same RTL implementation.
+
+---
 
 ## Divider Width and Baud-Rate Range
 
@@ -142,16 +158,14 @@ The supported baud-rate range depends on the width of the divider register.
 
 Current implementation uses:
 
-```
+```verilog
 input [8:0] div
-
 ```
 
 This provides a divider range of:
 
-```
+```text
 1 to 511
-
 ```
 
 Increasing the width of the divider register allows support for:
@@ -168,39 +182,34 @@ Increasing the width of the divider register allows support for:
 
 Maximum divider value:
 
-```
+```text
 511
-
 ```
 
 With a 100 MHz clock:
 
-```
+```text
 Minimum baud rate ≈ 100 MHz / 511 ≈ 195 kbaud
-
 ```
 
 ---
 
 ### Example Using 16-bit Divider
 
-```
+```verilog
 input [15:0] div
-
 ```
 
 Maximum divider value:
 
-```
+```text
 65535
-
 ```
 
 With a 100 MHz clock:
 
-```
+```text
 Minimum baud rate ≈ 100 MHz / 65535 ≈ 1525 baud
-
 ```
 
 Thus, increasing divider width expands the range of selectable UART baud rates.
@@ -248,24 +257,73 @@ The project includes a verification testbench featuring:
 * Parity-enabled transmission
 * VCD waveform dumping
 * GTKWave-based verification
+* Gate-level simulation (GLS)
+
+---
+
+# Synthesis Results
+
+Synthesized using Sky130 HD standard-cell library.
+
+## Synthesis Summary
+
+| Metric | Result |
+|---|---|
+| Total Standard Cells | 531 |
+| Chip Area | 5906.9152 |
+| Operating Frequency | 250 MHz |
+
+---
+
+# Static Timing Analysis (STA)
+
+STA performed using OpenSTA at:
+
+```text
+250 MHz clock frequency (4 ns clock period)
+```
+
+## Setup Timing
+
+| Metric | Result |
+|---|---|
+| Worst Setup Slack | 0.6487 ns |
+| Timing Status | MET |
+
+## Hold Timing
+
+| Metric | Result |
+|---|---|
+| Worst Hold Slack | 0.3312 ns |
+| Timing Status | MET |
+
+Timing closure successfully achieved at 250 MHz.
+
+---
+
+# Gate-Level Simulation (GLS)
+
+Gate-level simulation was performed using synthesized netlist generated from Yosys synthesis flow and verified using GTKWave.
 
 ---
 
 # Simulation
 
-## Compile
+## RTL Simulation
+
+### Compile
 
 ```bash
 iverilog -o tx.out *.v
 ```
 
-## Run
+### Run
 
 ```bash
 vvp tx.out
 ```
 
-## View Waveform
+### View Waveform
 
 ```bash
 gtkwave tx.vcd
@@ -282,6 +340,9 @@ gtkwave tx.vcd
 * UART serialization
 * Parity generation
 * Parameterized RTL Design
+* ASIC synthesis flow
+* Static Timing Analysis (STA)
+* Gate-Level Simulation (GLS)
 * Verification using Testbench
 
 ---
