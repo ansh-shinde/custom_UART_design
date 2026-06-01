@@ -140,6 +140,14 @@ module control_path_rx #(parameter DEPTH=8,
 //
 //------------------------------------------------------------------------------
                         always@(*)begin
+                          rd=              0;
+                          wr             = 0;
+                          sample_bit     = 0;
+                          clr_shiftreg   = 0;
+                          frame_error    = 0;
+                          parity_error   = 0;
+                          overrun_error  = 0;
+                          latch          = 0;
                         en_counter = (ps == SAMPLE);
                         case(ps)
                         IDLE:begin
