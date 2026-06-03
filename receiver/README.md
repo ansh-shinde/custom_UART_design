@@ -125,7 +125,9 @@ UART reception uses 16x oversampling for improved sampling reliability.
 
 Sampling occurs at the middle of each UART bit:
 
+```verilog id="n5rja2"
 sample_count == 7
+```
 
 This improves tolerance against timing mismatch and input noise.
 
@@ -135,7 +137,7 @@ This improves tolerance against timing mismatch and input noise.
 
 Oversampling timing is derived from an external divider input:
 
-```verilog
+```verilog id="f8qow3"
 input [8:0] div
 ```
 
@@ -145,7 +147,9 @@ Supported divider range:
 
 Baud Rate Formula:
 
+```text id="w7sla1"
 Baud Rate = Clock Frequency / Divider Value
+```
 
 ---
 
@@ -191,29 +195,60 @@ The project includes a verification testbench featuring:
 
 Synthesized using Sky130 HD standard-cell library.
 
-## Static Timing Analysis (STA)
+## Synthesis Summary
+
+| Metric               | Result    |
+| -------------------- | --------- |
+| Total Standard Cells | 544       |
+| Chip Area            | 6276.0192 |
+| Operating Frequency  | 200 MHz   |
+
+---
+
+# Static Timing Analysis (STA)
 
 STA performed using OpenSTA.
 
-### Setup Timing
+Initial STA analysis at 250 MHz showed setup timing violation due to the increased combinational complexity of the UART receiver datapath and control logic. The design frequency was later optimized to achieve successful timing closure.
+
+## Setup Timing
 
 | Metric            | Result                                |
 | ----------------- | ------------------------------------- |
 | Worst Setup Slack | Positive after frequency optimization |
 | Timing Status     | MET                                   |
 
-### Hold Timing
+Initial worst setup slack at 250 MHz:
 
-| Metric           | Result   |
-| ---------------- | -------- |
-| Worst Hold Slack | Positive |
-| Timing Status    | MET      |
+```text id="j4gke8"
+-0.2580 ns
+```
+
+---
+
+## Hold Timing
+
+| Metric           | Result    |
+| ---------------- | --------- |
+| Worst Hold Slack | 0.2312 ns |
+| Timing Status    | MET       |
+
+Hold timing successfully met without violations.
 
 ---
 
 # Gate-Level Simulation (GLS)
 
-Gate-level simulation was performed using synthesized netlist generated from Yosys synthesis flow and verified using GTKWave.
+Gate-level simulation was performed using the synthesized netlist generated from Yosys synthesis flow and verified using GTKWave.
+
+The GLS environment included:
+
+* Sky130 HD standard-cell models
+* Functional standard-cell simulation
+* Unit-delay GLS verification
+* RTL vs GLS waveform comparison
+
+Functional behavior between RTL and synthesized netlist was successfully verified.
 
 ---
 
@@ -223,19 +258,19 @@ Gate-level simulation was performed using synthesized netlist generated from Yos
 
 ### Compile
 
-```bash
+```bash id="p2xva4"
 iverilog -o rx.out *.v
 ```
 
 ### Run
 
-```bash
+```bash id="m8loa2"
 vvp rx.out
 ```
 
 ### View Waveform
 
-```bash
+```bash id="h1qke9"
 gtkwave rx.vcd
 ```
 
@@ -280,3 +315,4 @@ gtkwave rx.vcd
 # Author
 
 Ansh Shinde
+
