@@ -53,7 +53,6 @@ module data_path_rx #(parameter DEPTH=8,
                         input parity_odd,
                         input [8:0]div,
                         input latch,
-                        input en_counter,
                         input rst,
                         input rx,
                         input wr,
@@ -65,9 +64,10 @@ module data_path_rx #(parameter DEPTH=8,
                         output [3:0]bit_count,
                         output [3:0]sample_count,
                         output empty,
-                        output start,
+                        output reg start,
                         output reg stop,
                         output nr_empty,
+                        output reg en_counter,
                         output calculated_parity,
                         output reg parity_bit,
                         output [7:0]data_out
@@ -75,22 +75,68 @@ module data_path_rx #(parameter DEPTH=8,
                        wire [10:0]raw_byte;
                        reg [7:0]data_byte;
                        reg sync,sync_rx;
+                    
+//------------------------------------------------------------------------------
+// Start-Bit Detection
+// - Detects valid UART start bit
+// - Validates received start condition
+//------------------------------------------------------------------------------
+                       
+                       always@(posedge clk or posedge rst)begin
+                       if(rst)begin
+                       start<=1'b0;
+                       end
+                       else if(en)begin
+                       if((bit_count==0) && sample_bit)begin
+                       if(raw_byte[10]==0)begin
+                       start<=1'b1;
+                       end
+                       else begin
+                       start<=1'b0;
+                       end
+                       end
+                       else begin
+                        start<=1'b0;
+                       end
+                       end
+                       end
 
-                       assign start=(sync==0)&&(sync_rx==1);
+//------------------------------------------------------------------------------
+// Stop-Bit Detection
+// - Captures received UART stop bit
+// - Clears stop flag on frame reset
+//------------------------------------------------------------------------------
                        
                        always@(posedge clk or posedge rst)begin
                        if(rst)begin
                        stop<=1'b0;
                        end
                        else if(en)begin
-                       if((bit_count==10) && sample_bit)begin
+                       if((bit_count==11) && sample_bit)begin
                        stop<=raw_byte[10];
                        end
-                       else begin
-                       stop<=1'b0;
+                       else if(clr_shiftreg) stop<=1'b0;
                        end
                        end
+
+//------------------------------------------------------------------------------
+// UART Receive Enable Control
+// - Enables baud counter after start-edge detection
+//------------------------------------------------------------------------------
+
+                       always@(posedge clk or posedge rst)begin
+                       if(rst)begin
+                       en_counter<=1'b0;
                        end
+                       else if((sync==0 )&&(sync_rx==1))begin
+                       en_counter<=1'b1;
+                       end
+                       end
+
+//------------------------------------------------------------------------------
+// UART Receive Enable Control
+// - Enables baud counter after start-edge detection
+//------------------------------------------------------------------------------
 
                        always@(posedge clk or posedge rst)begin
                        if(rst)begin
@@ -103,10 +149,16 @@ module data_path_rx #(parameter DEPTH=8,
                        end
                        end
 
+//------------------------------------------------------------------------------
+// Oversampling Counter Logic
+// - Generates UART sampling timing
+// - Tracks UART frame progress
+//------------------------------------------------------------------------------
 
                        always@(posedge clk or posedge rst)begin
                        if(rst)begin
                        data_byte<=8'b0;
+                       parity_bit<=1'b0;
                        end
                        else if(en)begin
                        if(latch)begin
@@ -168,6 +220,7 @@ module data_path_rx #(parameter DEPTH=8,
                                 .rst_sipo(rst),
                                 .clr_shiftreg_sipo(clr_shiftreg),
                                 .clk_sipo(clk),
+                                .bit_count_sipo(bit_count),
                                 .shift_reg_sipo(raw_byte)
                                );
 
@@ -204,7 +257,7 @@ module baud_counter(
                     clk_per_sample<=5'b0;
                     end
                     else if(en_counter_baud)begin
-                    if(bit_count==11)begin
+                    if(bit_count==12)begin
                     bit_count<=4'b0;
                     end
                     else if(sample_count_16==15)begin
@@ -268,10 +321,12 @@ module sipo(
             input            rst_sipo,
             input            clr_shiftreg_sipo,
             input            clk_sipo,
+            input      [3:0] bit_count_sipo,
             output reg [10:0]shift_reg_sipo      
            );
             reg sync1,sync2;
-            
+            reg shift_pulse;
+
             always@(posedge clk_sipo or posedge rst_sipo)begin
             if(rst_sipo)begin
             sync1<=0;
@@ -283,6 +338,13 @@ module sipo(
             end
             end
 
+            always @(posedge clk_sipo or posedge rst_sipo) begin
+            if(rst_sipo)
+            shift_pulse <= 1'b0;
+            else
+            shift_pulse <= sync1 & ~sync2;
+            end
+
             always@(posedge clk_sipo or posedge rst_sipo)begin
             if(rst_sipo)begin
             shift_reg_sipo<=11'b0;
@@ -290,9 +352,10 @@ module sipo(
             else if(clr_shiftreg_sipo)begin
             shift_reg_sipo <= 11'b0;
             end
-            else if((sync1==1)&&(sync2==0))begin
+            else if(shift_pulse && (bit_count_sipo<11))begin
             shift_reg_sipo<={serial_in,shift_reg_sipo[10:1]};
             end
             end
 endmodule 
+
  
