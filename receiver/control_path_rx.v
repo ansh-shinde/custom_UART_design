@@ -48,6 +48,7 @@ module control_path_rx #(parameter DEPTH=8,
                         input empty,
                         input calculated_parity,
                         input parity_bit,
+                        input edge_detect,
                         output reg rd,
                         output reg wr,
                         output reg sample_bit,
@@ -55,12 +56,12 @@ module control_path_rx #(parameter DEPTH=8,
                         output reg frame_error,
                         output reg parity_error,
                         output reg overrun_error,
-                        output reg latch,
-                        output reg en_counter
+                        output reg latch
                         );
-                        
-                        parameter IDLE=0,SAMPLE=1,PARITY=2,PUSH=3;
-                        reg [1:0]ns,ps;
+
+                        parameter IDLE=3'b000,SAMPLE=3'b001,FRAME=3'b010,PARITY=3'b011,OVERRUN=3'b100,PUSH=3'b101;
+                        reg [2:0]ns,ps;
+
 
 //------------------------------------------------------------------------------
 // State Register
@@ -96,29 +97,70 @@ module control_path_rx #(parameter DEPTH=8,
                         always@(*)begin
                         case(ps)
                         IDLE:begin
-                             if(start)begin
+                             if(edge_detect)begin
                              ns=SAMPLE;
                              end
                              else begin
                              ns=IDLE;
                              end
                              end
+//------------------------------------------------------------------------------
+// SAMPLE State
+// - Generates mid-bit sampling pulse
+// - Implements 16x oversampling
+//------------------------------------------------------------------------------
+
                         SAMPLE:begin
-                               if(bit_count==11)begin
-                               ns=PARITY;
+                               if(bit_count==12)begin
+                               ns=FRAME;
                                end
                                else begin
                                ns=SAMPLE;
                                end
                                end
+//------------------------------------------------------------------------------
+// FRAME State
+// - Validates UART stop bit
+// - Generates frame_error if stop bit invalid
+//------------------------------------------------------------------------------
+
+                        FRAME:begin
+                              ns=PARITY;
+                              end
+
+//------------------------------------------------------------------------------
+// PARITY State
+// - Performs parity verification
+// - Generates parity_error on mismatch
+//------------------------------------------------------------------------------
+
                         PARITY:begin
-                               if(parity_bit == calculated_parity)begin
-                               ns=PUSH;
-                               end
-                               else begin
+                               if(frame_error)begin
                                ns=IDLE;
                                end
+                               else begin
+                               ns=OVERRUN;
                                end
+                               end
+
+//------------------------------------------------------------------------------
+// OVERRUN State
+// - Detects FIFO overrun condition
+//------------------------------------------------------------------------------   
+
+                             OVERRUN:begin
+                             if(parity_error)begin
+                             ns=IDLE;
+                             end
+                             else begin
+                             ns=PUSH;
+                             end
+                             end
+//------------------------------------------------------------------------------
+// PUSH State
+// - Transfers received UART data into FIFO
+// - Controls FIFO read/write operation
+//------------------------------------------------------------------------------
                         PUSH:begin
                              ns=IDLE;
                              end
@@ -140,15 +182,15 @@ module control_path_rx #(parameter DEPTH=8,
 //
 //------------------------------------------------------------------------------
                         always@(*)begin
-                          rd=              0;
-                          wr             = 0;
-                          sample_bit     = 0;
-                          clr_shiftreg   = 0;
-                          frame_error    = 0;
-                          parity_error   = 0;
-                          overrun_error  = 0;
-                          latch          = 0;
-                        en_counter = (ps == SAMPLE);
+                            // Default assignments
+                                   rd             = 0;
+                                   wr             = 0;
+                                   sample_bit     = 0;
+                                   clr_shiftreg   = 0;
+                                   frame_error    = 0;
+                                   parity_error   = 0;
+                                   overrun_error  = 0;
+                                   latch          = 0;
                         case(ps)
                         IDLE:begin
                              rd=0;
@@ -164,9 +206,11 @@ module control_path_rx #(parameter DEPTH=8,
                                if(sample_count==7)begin
                                sample_bit=1;
                                end
-                               else if(sample_count!=7)begin
+                               else begin
                                sample_bit=0;
+                               end  
                                end
+                        FRAME:begin
                                if(stop)begin
                                frame_error=0;
                                latch=1;
@@ -174,38 +218,44 @@ module control_path_rx #(parameter DEPTH=8,
                                end
                                else begin
                                frame_error=1;
-                               clr_shiftreg=1;
                                latch=0;
+                               clr_shiftreg=1;
                                end
                                end
                         PARITY:begin
-                               if(!(parity_bit == calculated_parity))begin
-                               parity_error=1;
-                               clr_shiftreg=1;
-                               end
-                               else begin
-                               parity_error=0;
-                               clr_shiftreg=0;
-                               end
-                               end
-                        PUSH:begin
+                             if(!(parity_bit == calculated_parity))begin
+                             parity_error=1;
+                             clr_shiftreg=1;
+                             end
+                             else begin
+                             parity_error=0;
+                             clr_shiftreg=0;
+                             end
+                             end
+                       OVERRUN:begin
                              if(full && start)begin
-                             wr=0;
                              overrun_error=1;
+                             end
+                             else begin
+                             overrun_error=0;
+                             end
+                            end
+                        PUSH :begin
+                             if(overrun_error==1)begin
+                             wr=0;
                              rd=1;
                              end
                              else if(empty)begin
                              rd=0;
                              wr=1;
                              end
-                             else if(!full && !empty && !frame_error && !parity_error)begin
+                             else if(!full && !empty)begin
                              wr=1;
                              rd=1;
                              end
                              else begin
                              wr=0;
                              rd=0;
-                             overrun_error=0;
                              end
                              end
                        default:begin
@@ -222,6 +272,11 @@ module control_path_rx #(parameter DEPTH=8,
                        end
 endmodule
                              
+
+
+
+
+
 
 
 
