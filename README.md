@@ -2,16 +2,16 @@
 
 ## Overview
 
-A modular and parameterized UART Transceiver implemented in Verilog HDL featuring:
+A modular UART Transceiver implemented in Verilog HDL featuring:
 
 * UART Transmitter and Receiver
-* FIFO-based buffering
-* FSM-based receiver control
-* 16x oversampling UART reception
+* FIFO-based UART buffering
 * Programmable baud-rate generation
-* Parity generation and checking
+* 16x oversampling UART reception
+* Even/Odd parity support
 * Control path and datapath separation
-* Verification testbenches
+* RTL verification and waveform analysis
+* ASIC frontend flow using open-source EDA tools
 
 ---
 
@@ -21,82 +21,48 @@ A modular and parameterized UART Transceiver implemented in Verilog HDL featurin
 
 * FIFO-based transmission buffering
 * Baud-rate controlled transmission
-* UART frame serialization
+* UART frame serialization using PISO
 * Even/Odd parity generation
-* Parallel-In Serial-Out (PISO) transmission
+* Modular datapath and control-path architecture
+
+---
 
 ## UART Receiver
 
+* FIFO-based receive buffering
 * 16x oversampling UART reception
+* UART deserialization using SIPO
 * Start-bit edge detection
-* Serial-In Parallel-Out (SIPO) deserialization
+* RX synchronization
 * Even/Odd parity checking
-* Stop-bit detection
+* Frame-error and overrun-error handling
 * FSM-based receive control
-* Frame error detection
-* Overrun error detection
-
-## FIFO Features
-
-* Parameterized FIFO depth and width
-* Gray-code pointer synchronization
-* Dual clock-domain FIFO architecture
-* Full / Empty detection
-* Almost Full / Almost Empty detection
 
 ---
 
-# Architecture
+# ASIC Frontend Flow
 
-## UART Transmitter
+Completed frontend ASIC flow using Sky130 open-source PDK:
 
-### Datapath
-
-Contains:
-
-* FIFO buffer
-* Baud counter
-* Parity generator
-* UART serializer (PISO)
-
-### Control Path
-
-Handles:
-
-* FIFO read control
-* UART transmission sequencing
-* Baud synchronized shifting
-* Transmission busy tracking
+* RTL Design and Verification
+* Logic Synthesis using Yosys
+* Static Timing Analysis (STA) using OpenSTA
+* Gate-Level Simulation (GLS)
+* Sky130 standard-cell implementation
 
 ---
 
-## UART Receiver
+# Technology Details
 
-### Datapath
-
-Contains:
-
-* RX synchronizer
-* Oversampling counter
-* UART deserializer (SIPO)
-* Parity checker
-* FIFO buffer
-
-### Control Path
-
-FSM-based control handling:
-
-* UART receive sequencing
-* Sampling control
-* FIFO write control
-* Error detection
-* Shift-register control
-
-FSM States:
-
-```text
-IDLE → SAMPLE → PARITY → PUSH
-```
+| Category               | Tool / Technology |
+| ---------------------- | ----------------- |
+| RTL Design             | Verilog HDL       |
+| Synthesis              | Yosys             |
+| Static Timing Analysis | OpenSTA           |
+| Waveform Viewer        | GTKWave           |
+| PDK                    | Sky130            |
+| Technology Node        | 130nm             |
+| Standard Cell Library  | sky130_fd_sc_hd   |
 
 ---
 
@@ -109,25 +75,22 @@ START + 8 DATA + PARITY + STOP
 ```
 
 * LSB transmitted first
-* Idle TX line remains HIGH
+* Single stop-bit support
 
 ---
 
 # Baud Rate Generation
 
-Baud timing is generated using a programmable divider value provided externally through the `div` input.
-
-```verilog
-if(count == div-1)
-    count <= 0;
-```
-
-The divider value is supplied by the upper-level system, allowing configurable UART baud-rate operation without modifying RTL.
-
-Current implementation uses:
+Baud timing is generated using a programmable divider input:
 
 ```verilog
 input [8:0] div
+```
+
+Baud Rate Formula:
+
+```text
+Baud Rate = Clock Frequency / Divider Value
 ```
 
 Supported divider range:
@@ -135,48 +98,6 @@ Supported divider range:
 ```text
 1 to 511
 ```
-
-> `div = 0` is considered invalid.
-
----
-
-# Baud Rate Formula
-
-```text
-Baud Rate = Clock Frequency / Divider Value
-```
-
----
-
-# Example (100 MHz Clock)
-
-| Divider (`div`) | Approximate Baud Rate |
-| --------------- | --------------------- |
-| 104             | 9600 baud             |
-| 54              | 115200 baud           |
-| 8               | 12.5 Mbps             |
-
----
-
-# Divider Width and Baud-Rate Range
-
-The supported baud-rate range depends on divider width.
-
-Current implementation uses a 9-bit divider.
-
-Increasing divider width allows:
-
-* Wider baud-rate range
-* Slower UART baud rates
-* Finer baud-rate configurability
-
-Example:
-
-```verilog
-input [15:0] div
-```
-
-would allow significantly larger divider values and lower baud rates.
 
 ---
 
@@ -188,82 +109,74 @@ UART RX uses:
 16x oversampling
 ```
 
-to improve asynchronous serial-data sampling reliability.
-
 Features:
 
 * Mid-bit sampling
-* Improved noise tolerance
-* Better UART timing robustness
-
----
-
-# FIFO Architecture
-
-The FIFO implementation includes:
-
-* Dual clock-domain support
-* Gray-code pointer synchronization
-* Binary-to-Gray pointer conversion
-* Pointer synchronization using 2FF synchronizers
-
-FIFO status handling:
-
-* Full detection
-* Empty detection
-* Almost Full detection
-* Almost Empty detection
+* Improved timing robustness
+* Better noise tolerance
 
 ---
 
 # Error Handling
 
-The UART receiver supports:
+Receiver supports:
 
-| Error Type    | Description                          |
-| ------------- | ------------------------------------ |
-| Frame Error   | Invalid stop bit detected            |
-| Parity Error  | Received parity mismatch             |
-| Overrun Error | FIFO full during new frame reception |
+| Error Type    | Description                |
+| ------------- | -------------------------- |
+| Frame Error   | Invalid stop-bit detected  |
+| Parity Error  | Received parity mismatch   |
+| Overrun Error | FIFO full during reception |
 
 ---
 
 # Verification
 
-The project includes dedicated UART TX and RX verification testbenches.
+Verification methodology includes:
 
-Verification methodology:
-
-* Manual UART serial stimulus
+* UART serial stimulus
 * FIFO operation verification
-* Waveform-based debugging
-* GTKWave analysis
-* Internal FIFO memory observation
+* RTL simulation
+* Gate-Level Simulation (GLS)
+* GTKWave waveform analysis
 
 ---
 
-# Project Structure
+# Synthesis and STA Results
+
+## UART Transmitter
+
+* Timing closure achieved at 250 MHz
+* Successful setup and hold timing verification
+* Functional RTL and GLS verification completed
+
+## UART Receiver
+
+* Initial setup timing violation observed at 250 MHz
+* Timing closure achieved after frequency optimization to 200 MHz
+* Successful setup and hold timing verification
+* Functional RTL and GLS waveform matching
+
+---
+
+# Repository Structure
 
 ```text
 custom_UART_design/
 │
 ├── transmitter/
-│   ├── data_path_tx.v
+│   ├── README.md
 │   ├── control_path_tx.v
+│   ├── data_path_tx.v
 │   ├── top_tx.v
 │   └── tx_tb.v
 │
 ├── receiver/
-│   ├── data_path_rx.v
+│   ├── README.md
 │   ├── control_path_rx.v
+│   ├── data_path_rx.v
 │   ├── top_rx.v
-│   └── rx_tb.v
-│
-├── async_fifo/
-│   ├── data.v
-│   ├── control.v
-│   ├── top.v
-│   └── test_fifo.v
+│   ├── rx_tb.v
+│   └── rx_tb_gls.v
 │
 ├── README.md
 └── .gitignore
@@ -273,19 +186,21 @@ custom_UART_design/
 
 # Simulation
 
-## Compile
+## RTL Simulation
+
+### Compile
 
 ```bash
 iverilog -o uart.out *.v
 ```
 
-## Run
+### Run
 
 ```bash
 vvp uart.out
 ```
 
-## View Waveforms
+### View Waveforms
 
 ```bash
 gtkwave *.vcd
@@ -297,37 +212,37 @@ gtkwave *.vcd
 
 * UART Transmitter Design
 * UART Receiver Design
-* FSM-Based Control Design
 * FIFO-Based Buffering
-* CDC Synchronization
-* Gray-Code Pointer Synchronization
-* Oversampling UART Reception
+* UART Oversampling
+* FSM-Based Control Design
 * Control Path / Datapath Separation
-* Parameterized RTL Design
+* ASIC Synthesis Flow
+* Static Timing Analysis (STA)
+* Gate-Level Simulation (GLS)
 * Verification using Testbenches
 
 ---
 
 # Current Limitations
 
-* Dynamic UART framing is not yet implemented
-* Current implementation supports single stop bit only
-* UART transmitter control path is not FSM-based
-* Runtime parity enable/disable handling is not implemented
+* Fixed UART frame format
+* Single stop-bit support
+* Dynamic UART framing not implemented
+* Runtime parity configuration limited
 
 ---
 
 # Planned Improvements
 
-* Dynamic UART frame configuration
-* FSM-based UART transmitter control
-* Configurable stop-bit support
-* Runtime parity enable/disable handling
-* TX-to-RX loopback verification
-* Randomized verification and assertions
+* Configurable UART frame format
+* Multiple stop-bit support
+* Randomized verification
+* SystemVerilog/UVM-based verification
+* TX-to-RX loopback integration
 
 ---
 
 # Author
 
 Ansh Shinde
+
